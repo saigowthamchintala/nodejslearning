@@ -62,6 +62,22 @@ const userSchema = new mongoose.Schema({
     }]
 })
 
+// userSchema.methods.getPublicProfile = function(){
+//     const user = this //Not really necessary
+//     const userObject = user.toObject()
+//     delete userObject.password
+//     delete userObject.tokens
+//     return userObject
+// }
+//OR
+userSchema.methods.toJSON = function(){
+    const user = this //Not really necessary
+    const userObject = user.toObject()
+    delete userObject.password
+    delete userObject.tokens
+    return userObject
+}
+
 userSchema.methods.generateAuthToken = async function(){
     const user = this //Not really necessary
     const token = jwt.sign({_id:user._id.toString()},'thisisjsonwebtoken')
