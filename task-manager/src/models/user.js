@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const validator = require('validator')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const Task = require('./task')
 //Goal:Add a password to User
 //
 //1.Setup the field as a required string
@@ -59,7 +60,18 @@ const userSchema = new mongoose.Schema({
             type:String,
             required:true
         }
-    }]
+    }],
+    avatar:{
+        type:Buffer
+    }
+},{
+    timestamps:true
+})
+
+userSchema.virtual('tasks',{
+    ref:'Task',
+    localField:'_id',
+    foreignField:'owner'
 })
 
 // userSchema.methods.getPublicProfile = function(){
@@ -75,12 +87,13 @@ userSchema.methods.toJSON = function(){
     const userObject = user.toObject()
     delete userObject.password
     delete userObject.tokens
+    delete userObject.avatar
     return userObject
 }
 
 userSchema.methods.generateAuthToken = async function(){
     const user = this //Not really necessary
-    const token = jwt.sign({_id:user._id.toString()},'thisisjsonwebtoken')
+    const token = jwt.sign({_id:user._id.toString()},process.env.JWT_SECRET)
     user.tokens = user.tokens.concat({token})
     await user.save()
     return token
@@ -98,6 +111,7 @@ userSchema.statics.findByCredentials = async (email,password) => {
     return user
 }
 
+//Hash the plain text password before saving
 userSchema.pre('save',async function(next){
     const user = this
     if(user.isModified('password')){
@@ -105,6 +119,14 @@ userSchema.pre('save',async function(next){
     }
     next()
 })
+
+//Delete user tasks when user is removed
+userSchema.pre('remove',async function(next) {
+    const user = this
+    console.log(user)
+    await Task.deleteMany({owner:user._id})
+    next()
+});
 
 const User = mongoose.model('User',userSchema)
 

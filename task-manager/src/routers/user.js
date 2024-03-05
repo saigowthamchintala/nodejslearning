@@ -1,7 +1,10 @@
 const express = require('express')
 const router = new express.Router()
+const multer = require('multer')
+const sharp = require('sharp')
 const User = require("../models/user")
 const auth = require('../middleware/auth')
+const {sendWelcomeEmail,sendCancelationEmail} = require('../emails/accounts')
 
 //https://www.webfx.com/web-development/glossary/http-status-codes/-->Reference for Status Codes
 
@@ -18,6 +21,7 @@ router.post('/users', async (req, res) => {
     const user = new User(req.body)
     try {
         await user.save()
+        sendWelcomeEmail(user.email,user.name)
         const token = await user.generateAuthToken()
         res.send({user,token})//Shorthanded syntax
     } catch (e) {
@@ -144,40 +148,83 @@ router.patch('/users/:id',async (req,res)=>{
     }
 })
 
-router.delete('/users/me',auth, async (req,res)=>{
-    try {
-        const user = await User.findByIdAndDelete(req.user._id)
-        if (!user) {
-            return res.status(404).send()
-        }
-        res.send(user)
-    } catch (e) {
-        res.status(500).send()
-    }
-
-})
-
-router.delete('/users/:id',async (req,res)=>{
-    const _id = req.params.id
-    try {
-        const user = await User.findByIdAndDelete(_id)
-        if (!user) {
-            return res.status(404).send()
-        }
-        res.send(user)
-    } catch (e) {
-        res.status(500).send()
-    }
-})
-
-
 // router.delete('/users/me',auth, async (req,res)=>{
 //     try {
-//         await req.user.remove() //This is not working might be the remove method is deprecreated
-//         res.send(req.user)
+//         const user = await User.findOneAndDelete({_id:req.user._id})
+//         if (!user) {
+//             return res.status(404).send()
+//         }
+//         res.send(user)
 //     } catch (e) {
 //         res.status(500).send()
 //     }
 // })
+
+router.delete('/users/me',auth, async (req,res)=>{
+    try {
+        await req.user.remove() //This is not working for higher versions of mongoose, might be the remove method is deprecreated
+        sendCancelationEmail(req.user.email,req.user.name)
+        res.send(req.user)
+    } catch (e) {
+        res.status(500).send()
+    }
+})
+
+// router.delete('/users/:id',async (req,res)=>{
+//     const _id = req.params.id
+//     try {
+//         const user = await User.findByIdAndDelete(_id)
+//         if (!user) {
+//             return res.status(404).send()
+//         }
+//         res.send(user)
+//     } catch (e) {
+//         res.status(500).send()
+//     }
+// })
+
+const upload = multer({
+    // dest:'avatar', //Needs to be commented if avatar to be stored in database rather than in the file system.
+    limits:{
+        fileSize:1000000
+    },
+    fileFilter(req,file,cb){
+        if(!file.originalname.match(/\.(jpg|jpeg|png)$/)){
+            return cb(new Error("Please upload an image."))
+        }
+        cb(undefined,true)
+    }
+})
+router.post('/users/me/avatar', auth, upload.single('avatar'),async (req,res)=>{
+    const buffer = await sharp(req.file.buffer).resize({width:250,height:250}).png().toBuffer()
+    req.user.avatar = buffer
+    //req.user.avatar = req.file.buffer
+    await req.user.save()
+    res.send()
+},(error,req,res,next)=>{
+    res.status(400).send({
+        error:error.message
+    })
+})
+
+router.delete('/users/me/avatar', auth, async (req,res)=>{
+    req.user.avatar = undefined
+    await req.user.save()
+    res.send()
+})
+
+router.get('/users/:id/avatar',async (req,res)=>{
+    try{
+        const user = await User.findById(req.params.id)
+        if(!user || !user.avatar){
+            throw new Error()
+        }
+        res.set('Content-Type','image/png')
+        //res.set('Content-Type','image/jpg')
+        res.send(user.avatar)
+    }catch(error){
+        res.status(400).send()
+    }
+})
 
 module.exports = router
