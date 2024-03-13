@@ -20,7 +20,7 @@ const sendWelcomeEmail = (email, name) => {
         subject: 'Thanks for joining in!',
         text: `Welcome to the app, ${name}. Let me know how you get along with the app.`
     }).then(() => {
-        console.log('Email sent')
+        //console.log('Email sent')
     }).catch((error) => {
         console.error(error)
     })
@@ -33,7 +33,7 @@ const sendCancelationEmail = (email, name) => {
         subject: 'Sorry to see you go!',
         text: `Goodbye, ${name}. I hope to see you back sometime soon.`//This syntax is only when template string is in within ``
     }).then(() => {
-        console.log('Email sent')
+        //console.log('Email sent')
     }).catch((error) => {
         console.error(error)
     })
